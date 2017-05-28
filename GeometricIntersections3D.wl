@@ -8,6 +8,10 @@ intersectRayBox::usage = "intersectRayBox[boxBounds,rayOrigin,source] returns Tr
 
 intersectRayTriangle::usage = "intersectRayTriangle=[vertex0,vertex1,vertex2,rayPoint0,rayPoint1]";
 
+intersectBoxBox::usage = "intersectBoxBox[box1,box2] returns True if specified Cuboids intersect.";
+
+PrimitiveIntersectionQ3D::usage = "PrimitiveIntersectionQ3D[obj1,obj2] returns True if graphical primitives obj1, obj2 intersect, False otherwise.";
+
 cuboidSubdivide::usage = "cuboidSubdivide[cuboidBounds] subdivides the cuboid {{min_x,min_y,min_z},{max_x,max_y,max_z}} into 8 equal cuboids, returning their {min,max} boundss respectivly.";
 
 newBVH::usage = "newBVH[cuboidPartitions,polyPoints] returns a new instance of a BVH object representing a list of polygons bound by a box.";
@@ -663,11 +667,73 @@ boxCenter[boxBounds_] := RegionCentroid[Cuboid @@ boxBounds];
 intersectTriangleBox[boxBounds_, triangleVertices_] := 
   intersectTriangleBox0[boxCenter[boxBounds], 
    boxHalfLength[boxBounds], triangleVertices];
+   
+   
+   
+(* BOX-BOX *)
+   
+intersectBoxBox[box1_,box2_]:=Block[{
+b1Min=box1[[1]],b2Min=box2[[1]],
+b1Max=box1[[2]],b2Max=box2[[2]]
+},
+(b1Min[[1]]<=b2Max[[1]]&&b1Max[[1]]>=b2Min[[1]])&&(b1Min[[2]]<=b2Max[[2]]&&b1Max[[2]]>=b2Min[[2]])&&(b1Min[[3]]<=b2Max[[3]]&&b1Max[[3]]>=b2Min[[3]])
+];
+
+(* LINE-LINE *)
+intersectionLineLine[line1_,line2_]:=Solve[{x,y,z}\[Element]Line[line1]&&{x,y,z}\[Element]Line[line2],{x,y,z}]=!={};
+
+
+
+
+(* Export Function *)
+(* RAY-TRIANGLE *)
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=Quiet@intersectRayTriangle[(Delete[0]@obj1)[[1]],(Delete[0]@obj1)[[2]],(Delete[0]@obj1)[[3]],(Delete[0]@obj2)[[1]],(Delete[0]@obj2)[[2]]]/;(Head[obj1]==Triangle&&Head[obj2]==Line);
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=Quiet@intersectRayTriangle[(Delete[0]@obj2)[[1]],(Delete[0]@obj2)[[2]],(Delete[0]@obj2)[[3]],(Delete[0]@obj1)[[1]],(Delete[0]@obj1)[[2]]]/;(Head[obj2]==Triangle&&Head[obj1]==Line);
+
+(* CUBOID-LINE *)
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=Quiet@intersectRayBox[Delete[0]@obj1,(Delete[0]@obj2)[[1]],(Delete[0]@obj2)[[2]]]/;(Head[obj1]==Cuboid&&Head[obj2]==Line);
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=Quiet@intersectRayBox[Delete[0]@obj2,(Delete[0]@obj1)[[1]],(Delete[0]@obj1)[[2]]]/;(Head[obj2]==Cuboid&&Head[obj1]==Line);
+
+(* CUBOID-TRIANGLE *)
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=Quiet@intersectTriangleBox[Delete[0]@obj1, Delete[0]@obj2]/;(Head[obj1]==Cuboid&&Head[obj2]==Triangle);
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=Quiet@intersectTriangleBox[Delete[0]@obj2,Delete[0]@obj1]/;(Head[obj2]==Cuboid&&Head[obj1]==Triangle);
+
+(* CUBOID-CUBOID *)
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=intersectBoxBox[Delete[0]@obj1,Delete[0]@obj2]/;(Head[obj1]==Cuboid&&Head[obj2]==Cuboid);
+
+(*LINE-LINE*)
+PrimitiveIntersectionQ3D[obj1_,obj2_]:=intersectionLineLine[Delete[0]@obj1,Delete[0]@obj2]/;(Head[obj1]==Line&&Head[obj2]==Line);
 
 
 End[];
 
+Column[{
+With[{
+testCuboid=Cuboid[{{0,0,0},{3,3,3}}],
+testLine=Line[{{1,3,2},{2,1,3}}],
+testTriangle=Triangle[{{0,0,0},{0,1,1},{1,2,2}}]
+},
+Row[{
+Graphics3D[{
+{Hue[0,0,0,0],testCuboid},testLine,testTriangle
+},Boxed->False,ImageSize->Medium],
+TableForm[Flatten/@Transpose[{Map[Head,#,{2}],PrimitiveIntersectionQ3D@@@#}],TableHeadings->{None,{"Obj1","Obj2","Intersects"}}]&[Permutations[{testCuboid,testLine,testTriangle},{2}]]
+}]
+],
+With[{
+cuboidTestCases=Permutations[{{Red,Cuboid[{{0,0,0},{5,5,5}}]},{Green,Cuboid[{{5,5,5},{6,6,6}}]},{Blue,Cuboid[{{2,2,2},{7,4,4}}]}},{2}]
+},
+Row[{
+Graphics3D[cuboidTestCases,ImageSize->Medium],
+Framed@TableForm[Flatten/@Transpose[{Map[First,cuboidTestCases,{2}],(PrimitiveIntersectionQ3D@@(Last/@#))&/@cuboidTestCases}]]
+},Spacer[5]]
+]
+}]
+
 EndPackage[];
+
+
+
 
 
 
