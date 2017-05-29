@@ -2,6 +2,8 @@
 
 BeginPackage["GeometricIntersections3D`"];
 
+loadExampleData::usage = "loadExampleData[] returns exemplar data from git repository";
+
 intersectTriangleBox::usage = "intersectTriangleBox[boxBounds, triangleVertices] returns True if a triangle with vertices v_ix,v_iy,v_iz intersects with cuboid with points {{x_min,y_min,z_min},{x_max,y_max,z_max}}.";
 
 intersectRayBox::usage = "intersectRayBox[boxBounds,rayOrigin,source] returns True if specified ray intersects with cuboid given by {{min_x,min_y,min_z},{max_x,max_y,max_z}}.";
@@ -22,18 +24,55 @@ finalizeBVH::usage = "finalizeBVH[BVH] returns a BVH object with its bounding vo
 
 intersectionRayBVH::usage = "intersectionRayBVH[BVHObj,rayOrigin,rayDest] returns True if a ray from p0 to p1 intersects with any of the polygons in a BVH indexed 3D model.";
 
+sceneConstructor::usage = "sceneConstructor[BVHobj] Initiates the GUI scene constructor."
+
 newScene::usage = "newScene[BVHobj,lightingPath,frameCount,rayRefinement] returns a new instance of a scene object.";
 
 renderScene::usage = "renderScene[sceneObj] returns a scene object with ray-tracing applied to all frames within the specified scene object";
 
 viewSceneFrame::usage = "viewSceneFrame[sceneObj,frameIndex] returns a Graphics3D rendition of a single specified frame from a processed scene object.";
 
+solarPositionPts::usage = "solarPositionPts[] returns the cartesian-transformed solar position from sunrise to sunset for the current time in 30 min intervals";
+solarPositionPts::usage = "solarPositionPts[date] specifies a date"; 
+solarPositionPts::usage = "solarPositionPts[tSpec] specifies a sample interval";
+solarPositionPts::usage = "solarPositionPts[date,tSpec]";
+
 
 
 Begin["`Private`"];
 
-(* -----------  BVH -----------  *)
+(* ----------  Example Data  ----------- *)
+(* load demo material *)
+loadExampleData[]:=With[{
+directoryPath="https://raw.githubusercontent.com/b-goodman/GeometricIntersections3D/master/Demo"
+},
+With[{
+modelRegion=Import[
+directoryPath<>"/houseModel4.dae",
+"MeshRegion"
+],
+polyPoints=Delete[0]@Import[
+directoryPath<>"/houseModel4.dae",
+"PolygonObjects"
+],
+bvh=Uncompress[Import[directoryPath<>"/BVH.txt"]],
+scene=Uncompress[Import[directoryPath<>"/scene.txt"]]
+},
 
+Return[<|
+"Model"-><|
+"PolygonObjects"->polyPoints,
+"Region"->modelRegion,
+"CuboidPartition"->{Delete[0]@BoundingRegion[modelRegion,"MinCuboid"]}
+|>,
+"BVH"-> bvh,
+"Scene"->scene
+|>];
+]
+];
+
+
+(* -----------  BVH -----------  *)
 (* CUBOID SUBDIVISION *)
 axialShiftLat[axis_,subDiv_,edgeLengths_]:=Block[{shiftSubDiv},
 shiftSubDiv=Transpose[subDiv];
@@ -200,14 +239,12 @@ Return[<|
 solarPositionPts0[date_:DateValue[Now,{"Year","Month","Day"}],tSpec_:{30,"Minute"}]:=
 Evaluate[CoordinateTransformData["Spherical"->"Cartesian","Mapping",{1,\[Pi]/2-(#2 Degree),2Pi-(#1 Degree)}]]&@@@(Function[{series},Map[QuantityMagnitude,series["Values"],{2}]]@SunPosition[DateRange[Sunrise[#],Sunset[#],tSpec]&[DateObject[date]]]);
 
-(* *******Add public export******* *)
 solarPositionPts[]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],{30,"Minute"}];
 solarPositionPts[date_]:=solarPositionPts0[date,{30,"Minute"}]/;Length[date]==3;
 solarPositionPts[tSpec_]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],tSpec]/;Length[tSpec]==2;
 solarPositionPts[date_,tSpec_]:=solarPositionPts0[date,tSpec];
 
 (* scene constructors *)
-
 newSceneDiscretePath[BVHobj_,lightingPath_,rayRefinement_,planeSpec_]:=With[{
 frameCount=Length[lightingPath]
 },
@@ -239,7 +276,7 @@ Return[<|
 newScene[BVHobj_,lightingPath_:BSplineFunction,frameCount_:Integer,rayRefinement_:Integer,planeSpec_:List]:=newSceneCtsPath[BVHobj,lightingPath,frameCount,rayRefinement,planeSpec]/;Head[lightingPath]==BSplineCurve;
 newScene[BVHobj_,lightingPath_:List,rayRefinement_:Integer,planeSpec_:List]:=newSceneDiscretePath[BVHobj,lightingPath,rayRefinement,planeSpec]/;Head[lightingPath]==List;
 
-(* *******Add public export******* *)
+
 (* GUI Scene Constructor *)
 sceneConstructor[BVHobj_]:=DynamicModule[{
 (* spec. Defaults *)
@@ -251,7 +288,6 @@ planeSpecH=0,
 rayRefinementSpec=50,
 frameCountSpec=20
 },
-
 (* config. Projection Plane *)
 projectionPlane[x_,y_,height_]:=Block[{
 rootBB=First[VertexList[BVHobj["Tree"]]]
@@ -276,7 +312,6 @@ Cuboid[projPlanePreview]
 },ViewPoint->Above,ImageSize->Medium,Boxed->False]
 }]
 ];
-
 (* config. Lighting *)
 defaultLightingPath[x_,y_,h_]:=Module[{
 defaultHeigth=First[VertexList[BVHobj["Tree"]]][[2,3]]*2,
@@ -307,7 +342,6 @@ Polygon[BVHobj["PolygonObjects"]]
 previewLightingPath[frameCountSpec_:Integer]:=previewLightingPath0[planeSpecX,planeSpecY,planeSpecH,frameCountSpec];
 previewLightingPath[lightingPathSpline_:BSplineCurve,frameCountSpec_:Integer]:=previewLightingPathCustomSpline[lightingPathSpline,frameCountSpec]/;Head[lightingPathSpline]==BSplineCurve;
 previewLightingPath[lightingPathPts_:List,frameCountSpec_:Integer]:=previewLightingPathCustomPts[lightingPathPts]/;Head[lightingPathPts]==List;
-
 (* scene constructor *)
 lightingPath[]:=ReleaseHold[customLightPathSpec]/;customLightPathQ;
 lightingPath[]:=defaultLightingPath[scene,planeSpecX,planeSpecY,planeSpecH]/;customLightPathQ==False;
@@ -318,8 +352,7 @@ yBounds=Last/@(Most/@projectionPlane[planeSpecX,planeSpecY,planeSpecH])
 Catenate[Table[{x,y,planeSpecH},{x,xBounds[[1]],xBounds[[2]],rayRefinementSpec},{y,yBounds[[1]],yBounds[[2]],rayRefinementSpec}]]
 ];
 generateScene[]:=newScene[BVHobj,lightingPath[],frameCountSpec,rayRefinementSpec,generateProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==BSplineCurve;
-generateScene[]:=newScene[BVHobj,lightingPath[],rayRefinementSpec,generateProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==List;
-
+generateScene[]:=newScene[BVHobj,lightingPath[],rayRefinementSpec,generateProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==List
 (* Create and show GUI *)
 CreateDialog[
 Column[{
@@ -351,8 +384,8 @@ Button["Generate Scene",CreateDocument[ExpressionCell[generateScene[],"Input"]],
 ]
 ];
 
-(* BVH Accelerated Shadow Mapper *)
 
+(* BVH Accelerated Shadow Mapper *)
 renderShadowPts[sceneObj_,i_]:=With[{
 pts=Select[
 sceneObj["ProjectionPoints"],
@@ -386,8 +419,8 @@ compileFrameData[frameIndex,shadowPts,sceneObj["SourcePositions"][[frameIndex]],
 ]
 ];
 
-(* Shadow mapped scene constructor *)
 
+(* Shadow mapped scene constructor *)
 renderScene[sceneObj_]:=Module[{
 sceneTemp=sceneObj
 },
