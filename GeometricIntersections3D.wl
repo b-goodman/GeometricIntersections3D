@@ -183,7 +183,7 @@ Return[False]
 
 (* ---------- RAY TRACER ------------ *)
 (* generate scene obj and render lighting for all source positions *)
-newScene[BVHobj_,lightingPath_,frameCount_,rayRefinement_]:=With[{
+(*newScene[BVHobj_,lightingPath_,frameCount_,rayRefinement_]:=With[{
 sourecPositions=lightingPath/@Range[0,1,N[1/frameCount]],
 projectionPlane=Catenate[Table[{i,j,0},{i,-400,900,rayRefinement},{j,-400,900,rayRefinement}]]
 },
@@ -195,7 +195,163 @@ Return[<|
 "ProjectionPoints"->projectionPlane,
 "FrameData"-><||>
 |>]
+];*)
+
+solarPositionPts0[date_:DateValue[Now,{"Year","Month","Day"}],tSpec_:{30,"Minute"}]:=
+Evaluate[CoordinateTransformData["Spherical"->"Cartesian","Mapping",{1,\[Pi]/2-(#2 Degree),2Pi-(#1 Degree)}]]&@@@(Function[{series},Map[QuantityMagnitude,series["Values"],{2}]]@SunPosition[DateRange[Sunrise[#],Sunset[#],tSpec]&[DateObject[date]]]);
+
+(* *******Add public export******* *)
+solarPositionPts[]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],{30,"Minute"}];
+solarPositionPts[date_]:=solarPositionPts0[date,{30,"Minute"}]/;Length[date]==3;
+solarPositionPts[tSpec_]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],tSpec]/;Length[tSpec]==2;
+solarPositionPts[date_,tSpec_]:=solarPositionPts0[date,tSpec];
+
+(* scene constructors *)
+
+newSceneDiscretePath[BVHobj_,lightingPath_,rayRefinement_,planeSpec_]:=With[{
+frameCount=Length[lightingPath]
+},
+Return[<|
+"BVH"->BVHobj,
+"SourcePositions"->lightingPath,
+"FrameCount"->frameCount,
+"Refinement"->rayRefinement,
+"ProjectionPoints"->planeSpec,
+"FrameData"-><||>
+|>]
 ];
+
+newSceneCtsPath[BVHobj_,lightingPath_,frameCount_,rayRefinement_,planeSpec_]:=With[{
+sourecPositions=BSplineFunction[Delete[0]@lightingPath]/@Range[0,1,N[1/frameCount]],
+projectionPlane=planeSpec
+},
+Return[<|
+"BVH"->BVHobj,
+"SourcePositions"->sourecPositions,
+"FrameCount"->frameCount,
+"Refinement"->rayRefinement,
+"ProjectionPoints"->projectionPlane,
+"FrameData"-><||>
+|>]
+];
+
+(* *******Update public export******** *)
+newScene[BVHobj_,lightingPath_:BSplineFunction,frameCount_:Integer,rayRefinement_:Integer,planeSpec_:List]:=newSceneCtsPath[BVHobj,lightingPath,frameCount,rayRefinement,planeSpec]/;Head[lightingPath]==BSplineCurve;
+newScene[BVHobj_,lightingPath_:List,rayRefinement_:Integer,planeSpec_:List]:=newSceneDiscretePath[BVHobj,lightingPath,rayRefinement,planeSpec]/;Head[lightingPath]==List;
+
+(* *******Add public export******* *)
+(* GUI Scene Constructor *)
+sceneConstructor[BVHobj_]:=DynamicModule[{
+(* spec. Defaults *)
+customLightPathQ=False,
+customLightPathSpec=HoldForm[BSplineCurve[solarPositionPts[]*1000]],
+planeSpecX=0,
+planeSpecY=0,
+planeSpecH=0,
+rayRefinementSpec=50,
+frameCountSpec=20
+},
+
+(* config. Projection Plane *)
+projectionPlane[x_,y_,height_]:=Block[{
+rootBB=First[VertexList[BVHobj["Tree"]]]
+},
+rootBB[[1,3]]=height;
+rootBB[[2,3]]=height;
+rootBB+={-{x,y,0},{x,y,0}};
+Return[rootBB]
+];
+previewProjectionPlane[x_,y_,height_]:=Module[{
+projPlanePreview=projectionPlane[x,y,height],
+model=Polygon[BVHobj["PolygonObjects"]]
+},
+Row[{
+Graphics3D[{
+model,
+Cuboid[projPlanePreview]
+},ImageSize->Medium],
+Deploy@Graphics3D[{
+model,
+Cuboid[projPlanePreview]
+},ViewPoint->Above,ImageSize->Medium,Boxed->False]
+}]
+];
+
+(* config. Lighting *)
+defaultLightingPath[x_,y_,h_]:=Module[{
+defaultHeigth=First[VertexList[BVHobj["Tree"]]][[2,3]]*2,
+midHeight=(First[VertexList[BVHobj["Tree"]]][[2,3]]*2)+((First[VertexList[BVHobj["Tree"]]][[2,3]]*2)*0.1),
+p0=First[projectionPlane[x,y,h]][[1;;2]],
+p1=Last[projectionPlane[x,y,h]][[1;;2]]
+},
+BSplineCurve[{
+Flatten[Join[{p0,defaultHeigth}]],
+Flatten[Join[{RegionCentroid[Line[{p0,p1}]],defaultHeigth+midHeight}]],
+Flatten[Join[{p1,defaultHeigth}]]
+}]
+];
+previewLightingPath0[planeSpecX_,planeSpecY_,planeSpecH_,frameCountSpec_]:=Graphics3D[{
+defaultLightingPath[planeSpecX,planeSpecY,planeSpecH],
+Point[(BSplineFunction[Delete[0]@defaultLightingPath[planeSpecX,planeSpecY,planeSpecH]]/@Range[0,1,N[1/frameCountSpec]])],
+Polygon[BVHobj["PolygonObjects"]]
+},ImageSize->Medium];
+previewLightingPathCustomSpline[lightingPathSpline_:BSplineCurve,frameCountSpec_:Integer]:=Graphics3D[{
+lightingPathSpline,
+Polygon[BVHobj["PolygonObjects"]],
+Point[(BSplineFunction[Delete[0]@ReleaseHold[lightingPathSpline]]/@Range[0,1,N[1/frameCountSpec]])]
+},ImageSize->Medium];
+previewLightingPathCustomPts[lightingPathPts_:List]:=Graphics3D[{
+Point[lightingPathPts],
+Polygon[BVHobj["PolygonObjects"]]
+},ImageSize->Medium];
+previewLightingPath[frameCountSpec_:Integer]:=previewLightingPath0[planeSpecX,planeSpecY,planeSpecH,frameCountSpec];
+previewLightingPath[lightingPathSpline_:BSplineCurve,frameCountSpec_:Integer]:=previewLightingPathCustomSpline[lightingPathSpline,frameCountSpec]/;Head[lightingPathSpline]==BSplineCurve;
+previewLightingPath[lightingPathPts_:List,frameCountSpec_:Integer]:=previewLightingPathCustomPts[lightingPathPts]/;Head[lightingPathPts]==List;
+
+(* scene constructor *)
+lightingPath[]:=ReleaseHold[customLightPathSpec]/;customLightPathQ;
+lightingPath[]:=defaultLightingPath[scene,planeSpecX,planeSpecY,planeSpecH]/;customLightPathQ==False;
+generateProjectionPlane[planeSpecX_,planeSpecY_,planeSpecH_,rayRefinementSpec_]:=With[{
+xBounds=First/@(Most/@projectionPlane[planeSpecX,planeSpecY,planeSpecH]),
+yBounds=Last/@(Most/@projectionPlane[planeSpecX,planeSpecY,planeSpecH])
+},
+Catenate[Table[{x,y,planeSpecH},{x,xBounds[[1]],xBounds[[2]],rayRefinementSpec},{y,yBounds[[1]],yBounds[[2]],rayRefinementSpec}]]
+];
+generateScene[]:=newScene[BVHobj,lightingPath[],frameCountSpec,rayRefinementSpec,generateProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==BSplineCurve;
+generateScene[]:=newScene[BVHobj,lightingPath[],rayRefinementSpec,generateProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==List;
+
+(* Create and show GUI *)
+CreateDialog[
+Column[{
+TabView[{
+"Shadow Plane"->Manipulate[
+previewProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH],
+{{planeSpecX,0,"X"},0,500,1},
+{{planeSpecY,0,"Y"},0,500,1},
+{{planeSpecH,0,"Height"},-500,500,1},
+LocalizeVariables->False
+],
+"Light Source"->Column[{
+Column[{
+Row[{TextCell["Specify Light Path"],Checkbox[Dynamic[customLightPathQ],{False,True}],InputField[Dynamic[customLightPathSpec],FieldSize->{25, 1},Enabled->Dynamic[customLightPathQ]]},Spacer[5]],
+Row[{
+Row[{TextCell["Ray Refinement: "],InputField[Dynamic[rayRefinementSpec],Number,FieldSize->{3,1}],Spacer[10]}],
+Row[{TextCell["Frames: "],InputField[Dynamic[frameCountSpec],Number,Enabled->Dynamic[(Head[ReleaseHold[customLightPathSpec]]=!=List)||!customLightPathQ],FieldSize->{3,1}],Spacer[10]}]
+},Spacer[10]]
+}],
+Dynamic@If[
+customLightPathQ,
+previewLightingPath[scene,ReleaseHold@customLightPathSpec,frameCountSpec],
+previewLightingPath[scene,frameCountSpec]
+]
+}]
+}],
+Button["Generate Scene",CreateDocument[ExpressionCell[generateScene[],"Input"]],ImageSize->{130,30}]
+}]
+]
+];
+
+(* BVH Accelerated Shadow Mapper *)
 
 renderShadowPts[sceneObj_,i_]:=With[{
 pts=Select[
@@ -230,6 +386,8 @@ compileFrameData[frameIndex,shadowPts,sceneObj["SourcePositions"][[frameIndex]],
 ]
 ];
 
+(* Shadow mapped scene constructor *)
+
 renderScene[sceneObj_]:=Module[{
 sceneTemp=sceneObj
 },
@@ -246,12 +404,42 @@ sceneTemp["FrameData"]=temp
 Return[sceneTemp];
 ];
 
-viewSceneFrame[sceneObj_,frameIndex_]:=Graphics3D[{
+
+(* Scene output *)
+(* Single Frames *)
+
+(*viewSceneFrame[sceneObj_,frameIndex_]:=Graphics3D[{
 {Yellow,PointSize[0.03],Point[sceneObj["FrameData"][frameIndex]["SourcePosition"]]},
 Polygon[sceneObj["BVH"]["PolygonObjects"]],
 {GrayLevel[.5],Cuboid/@sceneObj["FrameData"][frameIndex]["ShadowPts"]},
 {Green,Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]}
-},Lighting->{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}}];
+},Lighting->{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}}]*)
+
+
+(* *******Update public export******** *)
+Options[viewSceneFrame]={DrawSource->False};
+viewSceneFrame[sceneObj_,frameIndex_,opts:OptionsPattern[]]:=Graphics3D[{
+(* source *)
+If[
+OptionValue[
+viewSceneFrame,
+Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],
+DrawSource
+]==True,
+{Yellow,PointSize[0.03],Point[sceneObj["FrameData"][frameIndex]["SourcePosition"]]},
+{}
+],
+(* 3D Model *)
+Polygon[sceneObj["BVH"]["PolygonObjects"]],
+(* Shadow *)
+{GrayLevel[.5],Cuboid/@sceneObj["FrameData"][frameIndex]["ShadowPts"]},
+(* Projection surface *)
+{Green,Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]}
+},
+(* Model Lighting *)
+Lighting->{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}},
+Evaluate[FilterRules[{opts}, {Options[Graphics3D],Except[Options[viewSceneFrame]]}]]
+]
 
 
 
