@@ -279,7 +279,6 @@ newScene[BVHobj_,lightingPath_:List,rayRefinement_:Integer,planeSpec_:List]:=new
 
 (* GUI Scene Constructor *)
 sceneConstructor[BVHobj_]:=DynamicModule[{
-(* spec. Defaults *)
 customLightPathQ=False,
 customLightPathSpec=HoldForm[BSplineCurve[solarPositionPts[]*1000]],
 planeSpecX=0,
@@ -288,7 +287,7 @@ planeSpecH=0,
 rayRefinementSpec=50,
 frameCountSpec=20
 },
-(* config. Projection Plane *)
+
 projectionPlane[x_,y_,height_]:=Block[{
 rootBB=First[VertexList[BVHobj["Tree"]]]
 },
@@ -297,6 +296,7 @@ rootBB[[2,3]]=height;
 rootBB+={-{x,y,0},{x,y,0}};
 Return[rootBB]
 ];
+
 previewProjectionPlane[x_,y_,height_]:=Module[{
 projPlanePreview=projectionPlane[x,y,height],
 model=Polygon[BVHobj["PolygonObjects"]]
@@ -312,7 +312,7 @@ Cuboid[projPlanePreview]
 },ViewPoint->Above,ImageSize->Medium,Boxed->False]
 }]
 ];
-(* config. Lighting *)
+
 defaultLightingPath[x_,y_,h_]:=Module[{
 defaultHeigth=First[VertexList[BVHobj["Tree"]]][[2,3]]*2,
 midHeight=(First[VertexList[BVHobj["Tree"]]][[2,3]]*2)+((First[VertexList[BVHobj["Tree"]]][[2,3]]*2)*0.1),
@@ -325,40 +325,50 @@ Flatten[Join[{RegionCentroid[Line[{p0,p1}]],defaultHeigth+midHeight}]],
 Flatten[Join[{p1,defaultHeigth}]]
 }]
 ];
+
 previewLightingPath0[planeSpecX_,planeSpecY_,planeSpecH_,frameCountSpec_]:=Graphics3D[{
 defaultLightingPath[planeSpecX,planeSpecY,planeSpecH],
 Point[(BSplineFunction[Delete[0]@defaultLightingPath[planeSpecX,planeSpecY,planeSpecH]]/@Range[0,1,N[1/frameCountSpec]])],
 Polygon[BVHobj["PolygonObjects"]]
 },ImageSize->Medium];
+
 previewLightingPathCustomSpline[lightingPathSpline_:BSplineCurve,frameCountSpec_:Integer]:=Graphics3D[{
 lightingPathSpline,
 Polygon[BVHobj["PolygonObjects"]],
 Point[(BSplineFunction[Delete[0]@ReleaseHold[lightingPathSpline]]/@Range[0,1,N[1/frameCountSpec]])]
 },ImageSize->Medium];
+
 previewLightingPathCustomPts[lightingPathPts_:List]:=Graphics3D[{
 Point[lightingPathPts],
 Polygon[BVHobj["PolygonObjects"]]
 },ImageSize->Medium];
+
 previewLightingPath[frameCountSpec_:Integer]:=previewLightingPath0[planeSpecX,planeSpecY,planeSpecH,frameCountSpec];
+
 previewLightingPath[lightingPathSpline_:BSplineCurve,frameCountSpec_:Integer]:=previewLightingPathCustomSpline[lightingPathSpline,frameCountSpec]/;Head[lightingPathSpline]==BSplineCurve;
+
 previewLightingPath[lightingPathPts_:List,frameCountSpec_:Integer]:=previewLightingPathCustomPts[lightingPathPts]/;Head[lightingPathPts]==List;
-(* scene constructor *)
+
 lightingPath[]:=ReleaseHold[customLightPathSpec]/;customLightPathQ;
-lightingPath[]:=defaultLightingPath[scene,planeSpecX,planeSpecY,planeSpecH]/;customLightPathQ==False;
+
+lightingPath[]:=defaultLightingPath[planeSpecX,planeSpecY,planeSpecH]/;customLightPathQ==False;
+
 generateProjectionPlane[planeSpecX_,planeSpecY_,planeSpecH_,rayRefinementSpec_]:=With[{
 xBounds=First/@(Most/@projectionPlane[planeSpecX,planeSpecY,planeSpecH]),
 yBounds=Last/@(Most/@projectionPlane[planeSpecX,planeSpecY,planeSpecH])
 },
 Catenate[Table[{x,y,planeSpecH},{x,xBounds[[1]],xBounds[[2]],rayRefinementSpec},{y,yBounds[[1]],yBounds[[2]],rayRefinementSpec}]]
 ];
-generateScene[]:=newScene[BVHobj,lightingPath[],frameCountSpec,rayRefinementSpec,generateProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==BSplineCurve;
-generateScene[]:=newScene[BVHobj,lightingPath[],rayRefinementSpec,generateProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==List
-(* Create and show GUI *)
+
+generateScene[]:=newScene[BVHobj,lightingPath[],frameCountSpec,rayRefinementSpec,generateProjectionPlane[planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==BSplineCurve;
+
+generateScene[]:=newScene[BVHobj,lightingPath[],rayRefinementSpec,generateProjectionPlane[planeSpecX,planeSpecY,planeSpecH,rayRefinementSpec]]/;Head[lightingPath[]]==List;
+
 CreateDialog[
 Column[{
 TabView[{
 "Shadow Plane"->Manipulate[
-previewProjectionPlane[scene,planeSpecX,planeSpecY,planeSpecH],
+previewProjectionPlane[planeSpecX,planeSpecY,planeSpecH],
 {{planeSpecX,0,"X"},0,500,1},
 {{planeSpecY,0,"Y"},0,500,1},
 {{planeSpecH,0,"Height"},-500,500,1},
@@ -374,8 +384,8 @@ Row[{TextCell["Frames: "],InputField[Dynamic[frameCountSpec],Number,Enabled->Dyn
 }],
 Dynamic@If[
 customLightPathQ,
-previewLightingPath[scene,ReleaseHold@customLightPathSpec,frameCountSpec],
-previewLightingPath[scene,frameCountSpec]
+previewLightingPath[ReleaseHold@customLightPathSpec,frameCountSpec],
+previewLightingPath[frameCountSpec]
 ]
 }]
 }],
