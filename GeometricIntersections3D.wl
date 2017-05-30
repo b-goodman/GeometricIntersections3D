@@ -30,12 +30,14 @@ newScene::usage = "newScene[BVHobj,lightingPath,frameCount,rayRefinement] return
 
 renderScene::usage = "renderScene[sceneObj] returns a scene object with ray-tracing applied to all frames within the specified scene object";
 
-viewSceneFrame::usage = "viewSceneFrame[sceneObj,frameIndex] returns a Graphics3D rendition of a single specified frame from a processed scene object.";
+viewSceneFrame::usage = "viewSceneFrame[sceneObj,frameIndex, opts] returns a Graphics3D rendition of a single specified frame from a processed scene object.";
 
 solarPositionPts::usage = "solarPositionPts[] returns the cartesian-transformed solar position from sunrise to sunset for the current time in 30 min intervals";
 solarPositionPts::usage = "solarPositionPts[date] specifies a date"; 
 solarPositionPts::usage = "solarPositionPts[tSpec] specifies a sample interval";
 solarPositionPts::usage = "solarPositionPts[date,tSpec]";
+
+animateScene::usage = "animateScene[sceneObj, opts] returns a list animation of the specified scene's frames."
 
 
 
@@ -483,6 +485,36 @@ Polygon[sceneObj["BVH"]["PolygonObjects"]],
 Lighting->{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}},
 Evaluate[FilterRules[{opts}, {Options[Graphics3D],Except[Options[viewSceneFrame]]}]]
 ]
+
+animateScene[sceneObj_,opts:OptionsPattern[]]:=Module[
+{animationFrames},
+If[DirectoryQ[$TemporaryDirectory<>"\\tempListFrames"],
+Quiet@DeleteDirectory[$TemporaryDirectory<>"\\tempListFrames",DeleteContents->True]
+];
+Quiet@CreateDirectory[$TemporaryDirectory<>"\\tempListFrames"];
+SetDirectory[$TemporaryDirectory<>"\\tempListFrames"];
+Monitor[
+Do[
+Export[
+"frame_"<>ToString[frameIndex]<>".gif",
+viewSceneFrame[scene,frameIndex,Evaluate[FilterRules[{opts}, {Options[viewSceneFrame],Options[Graphics3D]}]]]
+],
+{frameIndex,1,Length[sceneObj["FrameData"]],1}
+],
+ProgressIndicator[Dynamic[frameIndex],{1,Length[scene["FrameData"]]}]
+];
+Monitor[
+animationFrames=Reap[Do[
+Sow[Import["frame_"<>ToString[frameIndex]<>".gif"]],
+{frameIndex,1,Length[sceneObj["FrameData"]],1}
+]],
+ProgressIndicator[Dynamic[frameIndex],{1,Length[scene["FrameData"]]}]
+];
+Export["animation.gif",Flatten[Last[animationFrames]]];
+SystemOpen[$TemporaryDirectory<>"\\tempListFrames"];
+ResetDirectory[];
+ListAnimate[Flatten[Last[animationFrames]]]
+];
 
 
 
