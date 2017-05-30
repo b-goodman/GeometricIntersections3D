@@ -39,6 +39,8 @@ solarPositionPts::usage = "solarPositionPts[date,tSpec]";
 
 animateScene::usage = "animateScene[sceneObj, opts] returns a list animation of the specified scene's frames."
 
+sceneExposureMap::usage = "sceneExposureMap[scene] generates a plot of the cumulative light exposure for a scene."
+
 
 
 Begin["`Private`"];
@@ -453,13 +455,6 @@ Return[sceneTemp];
 (* Scene output *)
 (* Single Frames *)
 
-(*viewSceneFrame[sceneObj_,frameIndex_]:=Graphics3D[{
-{Yellow,PointSize[0.03],Point[sceneObj["FrameData"][frameIndex]["SourcePosition"]]},
-Polygon[sceneObj["BVH"]["PolygonObjects"]],
-{GrayLevel[.5],Cuboid/@sceneObj["FrameData"][frameIndex]["ShadowPts"]},
-{Green,Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]}
-},Lighting->{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}}]*)
-
 
 Options[viewSceneFrame]={DrawSource->False,DrawGrid->True,ShadowColor->GrayLevel[.5],SurfaceColor->Green,ModelLighting->True};
 viewSceneFrame[sceneObj_,frameIndex_,opts:OptionsPattern[]]:=Graphics3D[{
@@ -517,6 +512,23 @@ Export["animation.gif",Flatten[Last[animationFrames]]];
 SystemOpen[$TemporaryDirectory<>"\\tempListFrames"];
 ResetDirectory[];
 ListAnimate[Flatten[Last[animationFrames]]]
+];
+
+(* Exposure Map *)
+sceneExposureMap[scene_,colorScheme_:"SolarColors"]:=Module[{exposure,tally,tallyRange,colorScale,colorScaleRules,heatMap},
+exposure=Values[Complement[({##,##+{scene["Refinement"],scene["Refinement"],0}}&/@scene["ProjectionPoints"]),#]&/@scene["FrameData"][[All,"ShadowPts"]]];
+tally=Tally[Flatten[Values[Complement[({##,##+{scene["Refinement"],scene["Refinement"],0}}&/@scene["ProjectionPoints"]),#]&/@scene["FrameData"][[All,"ShadowPts"]]],1]];
+tallyRange=Range@@Insert[MinMax[Last/@SortBy[tally,Last]],1,-1];
+colorScale=Rest[ColorData[colorScheme,"ColorFunction"]/@(Range@@Insert[1/#&/@MinMax[Last/@SortBy[tally,Last]],0,1])];
+colorScaleRules=Thread@@{tallyRange->colorScale};
+heatMap=Insert[MapAt[Cuboid,Reverse@MapAt[Replace[colorScaleRules], #,-1],-1],EdgeForm[],2]&/@tally;
+Row[{
+Show[Graphics3D[{
+{Opacity[0.3],Green,Polygon[scene["BVH"]["PolygonObjects"]]},
+heatMap
+},Boxed->False,ImageSize->Large],ViewPoint->Above],
+BarLegend[{colorScheme,MinMax[tallyRange]}]
+}]
 ];
 
 
