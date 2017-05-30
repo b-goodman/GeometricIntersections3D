@@ -461,30 +461,33 @@ Polygon[sceneObj["BVH"]["PolygonObjects"]],
 },Lighting->{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}}]*)
 
 
-(* *******Update public export******** *)
-Options[viewSceneFrame]={DrawSource->False};
+Options[viewSceneFrame]={DrawSource->False,DrawGrid->True,ShadowColor->GrayLevel[.5],SurfaceColor->Green,ModelLighting->True};
 viewSceneFrame[sceneObj_,frameIndex_,opts:OptionsPattern[]]:=Graphics3D[{
 (* source *)
-If[
-OptionValue[
-viewSceneFrame,
-Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],
-DrawSource
-]==True,
+If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawSource],
 {Yellow,PointSize[0.03],Point[sceneObj["FrameData"][frameIndex]["SourcePosition"]]},
 {}
 ],
 (* 3D Model *)
 Polygon[sceneObj["BVH"]["PolygonObjects"]],
 (* Shadow *)
-{GrayLevel[.5],Cuboid/@sceneObj["FrameData"][frameIndex]["ShadowPts"]},
+{OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],ShadowColor],If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawGrid],
+EdgeForm[Black],
+EdgeForm[None]
+],Cuboid/@sceneObj["FrameData"][frameIndex]["ShadowPts"]},
 (* Projection surface *)
-{Green,Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]}
+{OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],SurfaceColor],If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawGrid],
+EdgeForm[Black],
+EdgeForm[None]
+],Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]}
 },
 (* Model Lighting *)
-Lighting->{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}},
+Lighting->If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],ModelLighting],
+{{White,sceneObj["FrameData"][frameIndex]["SourcePosition"]}},
+"Neutral"
+],
 Evaluate[FilterRules[{opts}, {Options[Graphics3D],Except[Options[viewSceneFrame]]}]]
-]
+];
 
 animateScene[sceneObj_,opts:OptionsPattern[]]:=Module[
 {animationFrames},
