@@ -41,6 +41,7 @@ animateScene::usage = "animateScene[sceneObj, opts] returns a list animation of 
 
 sceneExposureMap::usage = "sceneExposureMap[scene] generates a plot of the cumulative light exposure for a scene."
 
+cullIntersectingPartitions;
 
 
 Begin["`Private`"];
@@ -484,8 +485,8 @@ Lighting->If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[vie
 Evaluate[FilterRules[{opts}, {Options[Graphics3D],Except[Options[viewSceneFrame]]}]]
 ];
 
-animateScene[sceneObj_,opts:OptionsPattern[]]:=Module[
-{animationFrames},
+animateScene[sceneObj_,opts:OptionsPattern[]]:=DynamicModule[
+{animationFrames,frameIndex=1},
 If[DirectoryQ[$TemporaryDirectory<>"\\tempListFrames"],
 Quiet@DeleteDirectory[$TemporaryDirectory<>"\\tempListFrames",DeleteContents->True]
 ];
@@ -495,18 +496,18 @@ Monitor[
 Do[
 Export[
 "frame_"<>ToString[frameIndex]<>".gif",
-viewSceneFrame[scene,frameIndex,Evaluate[FilterRules[{opts}, {Options[viewSceneFrame],Options[Graphics3D]}]]]
+viewSceneFrame[sceneObj,frameIndex,Evaluate[FilterRules[{opts}, {Options[viewSceneFrame],Options[Graphics3D]}]]]
 ],
 {frameIndex,1,Length[sceneObj["FrameData"]],1}
 ],
-ProgressIndicator[Dynamic[frameIndex],{1,Length[scene["FrameData"]]}]
+ProgressIndicator[Dynamic[frameIndex],{1,Length[sceneObj["FrameData"]]}]
 ];
 Monitor[
 animationFrames=Reap[Do[
 Sow[Import["frame_"<>ToString[frameIndex]<>".gif"]],
 {frameIndex,1,Length[sceneObj["FrameData"]],1}
 ]],
-ProgressIndicator[Dynamic[frameIndex],{1,Length[scene["FrameData"]]}]
+ProgressIndicator[Dynamic[frameIndex],{1,Length[sceneObj["FrameData"]]}]
 ];
 Export["animation.gif",Flatten[Last[animationFrames]]];
 SystemOpen[$TemporaryDirectory<>"\\tempListFrames"];
