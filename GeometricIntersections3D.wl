@@ -241,13 +241,14 @@ Return[<|
 |>]
 ];*)
 
-solarPositionPts0[date_:DateValue[Now,{"Year","Month","Day"}],tSpec_:{30,"Minute"}]:=
-Evaluate[CoordinateTransformData["Spherical"->"Cartesian","Mapping",{1,\[Pi]/2-(#2 Degree),2Pi-(#1 Degree)}]]&@@@(Function[{series},Map[QuantityMagnitude,series["Values"],{2}]]@SunPosition[DateRange[Sunrise[#],Sunset[#],tSpec]&[DateObject[date]]]);
+solarPositionPts0[location_:Here, date_:DateValue[Now,{"Year","Month","Day"}],tSpec_:{30,"Minute"}]:=
+Evaluate[CoordinateTransformData["Spherical"->"Cartesian","Mapping",{1,\[Pi]/2-(#2 Degree),2Pi-(#1 Degree)}]]&@@@(Function[{series},Map[QuantityMagnitude,series["Values"],{2}]]@SunPosition[location,DateRange[Sunrise[#],Sunset[#],tSpec]&[DateObject[date]]]);
 
 solarPositionPts[]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],{30,"Minute"}];
 solarPositionPts[date_]:=solarPositionPts0[date,{30,"Minute"}]/;Length[date]==3;
 solarPositionPts[tSpec_]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],tSpec]/;Length[tSpec]==2;
 solarPositionPts[date_,tSpec_]:=solarPositionPts0[date,tSpec];
+solarPositionPts[location_,date_,tSpec_]:=solarPositionPts0[location,date,tSpec];
 
 (* scene constructors *)
 newSceneDiscretePath[BVHobj_,lightingPath_,rayRefinement_,planeSpec_]:=With[{
@@ -459,11 +460,7 @@ Return[sceneTemp];
 
 Options[viewSceneFrame]={DrawSource->False,DrawGrid->True,ShadowColor->GrayLevel[.5],SurfaceColor->Green,ModelLighting->True};
 viewSceneFrame[sceneObj_,frameIndex_,opts:OptionsPattern[]]:=Graphics3D[{
-(* source *)
-If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawSource],
-{Yellow,PointSize[0.03],Point[sceneObj["FrameData"][frameIndex]["SourcePosition"]]},
-{}
-],
+
 (* 3D Model *)
 Polygon[sceneObj["BVH"]["PolygonObjects"]],
 (* Shadow *)
@@ -475,7 +472,13 @@ EdgeForm[None]
 {OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],SurfaceColor],If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawGrid],
 EdgeForm[Black],
 EdgeForm[None]
-],Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]}
+],Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]},
+
+(* source *)
+If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawSource],
+{Yellow,PointSize[0.03],Point[sceneObj["FrameData"][frameIndex]["SourcePosition"]]},
+{}
+]
 },
 (* Model Lighting *)
 Lighting->If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],ModelLighting],
@@ -517,10 +520,10 @@ ListAnimate[Flatten[Last[animationFrames]]]
 
 (* Exposure Map *)
 sceneExposureMap[scene_,colorScheme_:"SolarColors"]:=Module[{exposure,tally,tallyRange,colorScale,colorScaleRules,heatMap},
-exposure=Values[Complement[({##,##+{scene["Refinement"],scene["Refinement"],0}}&/@scene["ProjectionPoints"]),#]&/@scene["FrameData"][[All,"ShadowPts"]]];
-tally=Tally[Flatten[Values[Complement[({##,##+{scene["Refinement"],scene["Refinement"],0}}&/@scene["ProjectionPoints"]),#]&/@scene["FrameData"][[All,"ShadowPts"]]],1]];
+exposure=Values[scene["FrameData"][[All,"GroundPts"]]];
+tally=Tally[Flatten[exposure,1]];
 tallyRange=Range@@Insert[MinMax[Last/@SortBy[tally,Last]],1,-1];
-colorScale=Rest[ColorData[colorScheme,"ColorFunction"]/@(Range@@Insert[1/#&/@MinMax[Last/@SortBy[tally,Last]],0,1])];
+colorScale=ColorData[colorScheme,"ColorFunction"]/@Rescale[tallyRange];
 colorScaleRules=Thread@@{tallyRange->colorScale};
 heatMap=Insert[MapAt[Cuboid,Reverse@MapAt[Replace[colorScaleRules], #,-1],-1],EdgeForm[],2]&/@tally;
 Row[{
