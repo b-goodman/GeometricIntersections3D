@@ -42,6 +42,7 @@ animateScene::usage = "animateScene[sceneObj, opts] returns a list animation of 
 sceneExposureMap::usage = "sceneExposureMap[scene] generates a plot of the cumulative light exposure for a scene."
 
 cullIntersectingPartitions;
+BVHLeafBoxIntersection;
 
 
 Begin["`Private`"];
@@ -244,7 +245,7 @@ Return[<|
 solarPositionPts0[location_:Here, date_:DateValue[Now,{"Year","Month","Day"}],tSpec_:{30,"Minute"}]:=
 Evaluate[CoordinateTransformData["Spherical"->"Cartesian","Mapping",{1,\[Pi]/2-(#2 Degree),2Pi-(#1 Degree)}]]&@@@(Function[{series},Map[QuantityMagnitude,series["Values"],{2}]]@SunPosition[location,DateRange[Sunrise[#],Sunset[#],tSpec]&[DateObject[date]]]);
 
-solarPositionPts[]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],{30,"Minute"}];
+solarPositionPts[]:=solarPositionPts0[Here,DateValue[Now,{"Year","Month","Day"}],{30,"Minute"}];
 solarPositionPts[date_]:=solarPositionPts0[date,{30,"Minute"}]/;Length[date]==3;
 solarPositionPts[tSpec_]:=solarPositionPts0[DateValue[Now,{"Year","Month","Day"}],tSpec]/;Length[tSpec]==2;
 solarPositionPts[date_,tSpec_]:=solarPositionPts0[date,tSpec];
