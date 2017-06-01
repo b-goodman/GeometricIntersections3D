@@ -545,6 +545,13 @@ BarLegend[{colorScheme,MinMax[tallyRange]}]
 (* -----------  INTERSECTIONS ----------- *)
 
 (* RAY-TRIANGLE *)
+(*
+Akenine-Moller, Tomas.  "Fast 3D Triangle-Box Overlap Testing",
+http://fileadmin.cs.lth.se/cs/Personal/Tomas_Akenine-Moller/code/tribox3.txt,
+https://fileadmin.cs.lth.se/cs/Personal/Tomas_Akenine-Moller/pubs/tribox.pdf
+*)
+(* pretty much verbatim from https://github.com/lucasdealmeidasm/TriangleBox.js/blob/master/TriangleBox.js *)
+(* will be simplified in next version *)
 intersectRayTriangle=Compile[
 {
 {vertex0,_Real,1},
@@ -671,6 +678,7 @@ Return[returnValue];
 
 
 (* TRIANGLE-BOX *)
+
 ClearAll[intersectTriangleBox0];
 intersectTriangleBox0 = Compile[{
     {c, _Real, 1},
