@@ -2,7 +2,7 @@
 
 BeginPackage["GeometricIntersections3D`"];
 
-loadExampleData::usage = "loadExampleData[] returns exemplar data from git repository";
+(*loadExampleData::usage = "loadExampleData[] returns exemplar data from git repository";*)
 
 intersectTriangleBox::usage = "intersectTriangleBox[boxBounds, triangleVertices] returns True if a triangle with vertices v_ix,v_iy,v_iz intersects with cuboid with points {{x_min,y_min,z_min},{x_max,y_max,z_max}}.";
 
@@ -49,7 +49,7 @@ Begin["`Private`"];
 
 (* ----------  Example Data  ----------- *)
 (* load demo material *)
-loadExampleData[]:=With[{
+(*loadExampleData[]:=With[{
 directoryPath="https://raw.githubusercontent.com/b-goodman/GeometricIntersections3D/master/Demo"
 },
 With[{
@@ -75,7 +75,7 @@ Return[<|
 "Scene"->scene
 |>];
 ]
-];
+];*)
 
 
 (* -----------  BVH -----------  *)
@@ -459,7 +459,7 @@ Return[sceneTemp];
 (* Single Frames *)
 
 
-Options[viewSceneFrame]={DrawSource->False,DrawGrid->True,ShadowColor->GrayLevel[.5],SurfaceColor->Green,ModelLighting->True};
+Options[viewSceneFrame]={DrawSource->False,DrawGrid->True,DrawSurface->True,ShadowColor->GrayLevel[.5],SurfaceColor->Green,ModelLighting->True};
 viewSceneFrame[sceneObj_,frameIndex_,opts:OptionsPattern[]]:=Graphics3D[{
 
 (* 3D Model *)
@@ -469,11 +469,15 @@ Polygon[sceneObj["BVH"]["PolygonObjects"]],
 EdgeForm[Black],
 EdgeForm[None]
 ],Cuboid/@sceneObj["FrameData"][frameIndex]["ShadowPts"]},
+
 (* Projection surface *)
+If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawSurface],
 {OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],SurfaceColor],If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawGrid],
 EdgeForm[Black],
 EdgeForm[None]
 ],Cuboid/@sceneObj["FrameData"][frameIndex]["GroundPts"]},
+{}
+],
 
 (* source *)
 If[OptionValue[viewSceneFrame,Evaluate[FilterRules[{opts}, Options[viewSceneFrame]]],DrawSource],
